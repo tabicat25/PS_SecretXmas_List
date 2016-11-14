@@ -1,0 +1,65 @@
+$starttime = Get-Date
+
+$presenttotal = 2
+
+#import csv of people to buy for
+$list = Import-Csv C:\temp\FinaldiXMasList.csv
+
+# create a present total of 0 on the imported list
+$list | Add-Member -Name PresentTotal -MemberType NoteProperty -Value 0
+
+#
+$Outputlist = @()
+
+# for each purchaser find some people to buy presents for
+foreach ($buyer in ($list | ? {$_.Child -ne $True} | sort-object Family -Unique)){
+    write-host "working on $($buyer.Family)"
+    
+    $x=0                              # counter to monitor the numnber of presents bought
+    
+    # generate a max number of presents that each buyer needs to buy
+    [int]$maxpresentcount = ($list.Count / [int]($list | ? {$_.Child -ne $True} | sort-object Family -Unique).count ) * $presenttotal
+
+    # attempt to account for wealthy and non wealthy people
+    if ($buyer.wealthy) {    
+        $maxpresentcount=$maxpresentcount+$buyer.wealthy
+        Write-Host "Adjusting present count for $($buyer.Family) to $maxpresentcount"
+    }
+    
+    # hash table creation for each buyer that will be added to as recievers are added to a buyers list
+    $hash = @{
+        Buyer = $($buyer.Family)
+
+    }
+
+    do{
+        #find buyer people to buy for based on the their total present count
+        [System.Collections.ArrayList]$quicklist = $list | where {$_.Family -ne $buyer.Family -and $_.PresentTotal -lt $presenttotal -and $hash.Values -notcontains $_.Name}
+        if ($quicklist.count -eq 0){
+            Write-Host "Everybody has $presenttotal present buyers";break
+        }
+        $gifter = $quicklist | Get-Random        
+        $hash."Recepient$x"=$gifter.Name
+        $quicklist.Remove($gifter)
+        
+        
+        # increment the presents assigned to the buyer
+        $x++
+        # increment the gifters present list by 1
+        ($list | where {$_.Name -eq $gifter.Name}).PresentTotal = ($list | where {$_.Name -eq $gifter.Name }).PresentTotal+1
+        #($list | where {$_.Name -eq $gifter.Name}).PresentTotal
+        
+    }
+    until ($x -eq $maxpresentcount)
+
+    $outputlist += New-Object -TypeName psobject -Property $hash
+
+}
+
+
+$Outputlist | export-csv C:\temp\FinaldiXMASOutput_Version5.csv -NoTypeInformation -Force
+    
+    
+$list | where {$_.PresentTotal -lt 2}
+
+(Get-Date) - $starttime
